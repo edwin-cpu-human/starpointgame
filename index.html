@@ -17,7 +17,9 @@
   <div id="loginScreen" class="fixed inset-0 bg-slate-950 z-50 p-6 flex flex-col justify-center">
     <h2 class="text-xl font-bold text-amber-400 mb-2">⭐ Masuk Arena Game</h2>
     <p class="text-xs text-slate-400 mb-4">Pilih nama kamu dari daftar yang sudah disediakan Guru:</p>
-    <select id="selectMyName" class="bg-slate-900 border border-slate-700 text-white p-3 rounded-xl mb-4 text-sm font-bold"></select>
+    <select id="selectMyName" class="bg-slate-900 border border-slate-700 text-white p-3 rounded-xl mb-4 text-sm font-bold">
+      <option value="">-- Memuat daftar nama... --</option>
+    </select>
     <button onclick="confirmPlayer()" class="bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl text-sm">Mulai Bermain 🚀</button>
   </div>
 
@@ -46,8 +48,7 @@
   </footer>
 
   <script>
-    <script>
-    // URL Realtime Database milikmu sudah terpasang otomatis
+    // Koneksi Otomatis ke Database
     const savedUrl = "https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/";
     firebase.initializeApp({ databaseURL: savedUrl });
     const db = firebase.database();
@@ -56,33 +57,34 @@
     let currentQuizData = null;
     let quizActive = false;
 
-    // Load Student Names
-    db.ref('students').once('value', snap => {
+    // Load Student Names secara Real-time
+    db.ref('students').on('value', snap => {
       const select = document.getElementById('selectMyName');
       select.innerHTML = '';
       if(snap.exists()){
         Object.keys(snap.val()).forEach(name => {
           select.innerHTML += `<option value="${name}">${name}</option>`;
         });
+      } else {
+        select.innerHTML = '<option value="">Belum ada nama terdaftar dari Guru</option>';
       }
     });
 
     function confirmPlayer() {
       playerName = document.getElementById('selectMyName').value;
-      if(!playerName) return alert("Pilih namamu!");
+      if(!playerName || playerName.includes('Belum ada')) return alert("Pilih namamu lebih dulu!");
       document.getElementById('myName').textContent = playerName;
       document.getElementById('loginScreen').classList.add('hidden');
 
-      // Listen My Score
+      // Listen Skor Pribadi
       db.ref(`students/${playerName}/score`).on('value', snap => {
         document.getElementById('myScore').textContent = snap.val() || 0;
       });
     }
 
-    // ANTI-CHEAT VISIBILITY API
+    // DETEKSI KECURANGAN (MATA ELANG)
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && quizActive && playerName) {
-        // Penalty -100
         db.ref(`students/${playerName}/score`).transaction(s => (s || 0) - 100);
         db.ref('logs').push({ name: playerName, time: new Date().toLocaleTimeString() });
         document.getElementById('penaltyAlert').classList.remove('hidden');
@@ -107,7 +109,7 @@
       const box = document.getElementById('optionsGroup');
       box.innerHTML = '';
 
-      // Shuffle options for flat buttons
+      // Acak tombol pilihan jawaban (Flat Style)
       let opts = q.options.map((opt, i) => ({ text: opt, originalIdx: i }));
       opts.sort(() => Math.random() - 0.5);
 
@@ -123,7 +125,7 @@
     function submitAnswer(idx, btn) {
       quizActive = false;
       document.querySelectorAll('#optionsGroup button').forEach(b => b.disabled = true);
-      btn.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white'); // Poker face locking
+      btn.classList.add('bg-emerald-600', 'border-emerald-400', 'text-white'); // Tanda kunci hijau tanpa bocor benar/salah
 
       const isCorrect = idx === currentQuizData.questionData.correct;
       const elapsed = (Date.now() - currentQuizData.startTime) / 1000;
