@@ -29,25 +29,34 @@
       <h3 class="text-sm font-bold tracking-widest text-slate-400">PAPAN PERINGKAT (TOP 10)</h3>
       <span id="blindNotice" class="hidden bg-amber-500/20 text-amber-400 text-xs font-bold px-3 py-1 rounded-full border border-amber-500">🔒 BLIND PHASE (SKOR DIKUNCI)</span>
     </div>
-    <div id="leaderboardBars" class="space-y-3"></div>
+    <div id="leaderboardBars" class="space-y-3">
+      <div class="text-xs text-slate-500 text-center py-4">Menunggu sinyal dari Game Master...</div>
+    </div>
   </section>
 
   <script>
-    <script>
-    // URL Realtime Database milikmu sudah terpasang otomatis
+    // Inisialisasi Firebase
     const savedUrl = "https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/";
-    firebase.initializeApp({ databaseURL: savedUrl });
+    
+    if (!firebase.apps.length) {
+      firebase.initializeApp({ databaseURL: savedUrl });
+    }
     const db = firebase.database();
 
     let isBlindMode = false;
     let scores = {};
 
+    // Listen data siswa & skor
     db.ref('students').on('value', snap => {
-      if(!snap.exists()) return;
+      if(!snap.exists()) {
+        document.getElementById('leaderboardBars').innerHTML = '<div class="text-xs text-slate-500 text-center py-4">Belum ada siswa terdaftar.</div>';
+        return;
+      }
       scores = snap.val();
       if(!isBlindMode) renderLeaderboard();
     });
 
+    // Listen status kuis live
     db.ref('currentGameState').on('value', snap => {
       const data = snap.val();
       if(!data) return;
@@ -89,7 +98,7 @@
         if(timeLeft <= 0) {
           clearInterval(interval);
           timer.classList.add('hidden');
-          // Reveal Correct
+          // Tampilkan Jawaban Benar & Leaderboard
           document.getElementById('correctReveal').classList.remove('hidden');
           document.getElementById('correctText').textContent = data.questionData.options[data.questionData.correct];
           if(!isBlindMode) renderLeaderboard();
