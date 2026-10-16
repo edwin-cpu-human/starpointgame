@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Chase - Player Joypad</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <style>
+    body { user-select: none; -webkit-user-select: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen p-4 flex flex-col justify-between font-sans">
+  
+  <!-- LOGIN PEMAIN -->
+  <div id="loginScreen" class="fixed inset-0 bg-slate-950 z-50 p-6 flex flex-col justify-center">
+    <h2 class="text-xl font-bold text-amber-400 mb-2">⭐ Masuk Arena Game</h2>
+    <p class="text-xs text-slate-400 mb-4">Pilih nama kamu dari daftar yang sudah disediakan Guru:</p>
+    <select id="selectMyName" class="bg-slate-900 border border-slate-700 text-white p-3 rounded-xl mb-4 text-sm font-bold"></select>
+    <button onclick="confirmPlayer()" class="bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl text-sm">Mulai Bermain 🚀</button>
+  </div>
+
+  <header class="flex justify-between items-center border-b border-slate-800 pb-3">
+    <div>
+      <span class="text-[10px] text-slate-400 block">Pemain:</span>
+      <h1 id="myName" class="text-sm font-bold text-amber-400">...</h1>
+    </div>
+    <div class="text-right">
+      <span class="text-[10px] text-slate-400 block">Skor Kamu:</span>
+      <span id="myScore" class="text-lg font-black text-emerald-400">0</span>
+    </div>
+  </header>
+
+  <!-- ARENA KUIS HP -->
+  <main id="quizArea" class="my-auto hidden space-y-4">
+    <div id="penaltyAlert" class="hidden bg-rose-600 text-white p-3 rounded-xl text-xs font-bold text-center animate-bounce">
+      🚨 TERDETEKSI KELUAR ARENA! Skor kamu dipotong -100 Poin!
+    </div>
+    <h2 id="qTextPlayer" class="text-sm font-bold text-center text-slate-200">Soal Muncul...</h2>
+    <div id="optionsGroup" class="grid grid-cols-1 gap-2"></div>
+  </main>
+
+  <footer class="text-center text-[10px] text-slate-500 py-2">
+    ⚠️ Dilarang menekan tombol Home atau pindah aplikasi saat kuis berlangsung!
+  </footer>
+
+  <script>
+    const savedUrl = localStorage.getItem('firebaseDbUrl') || prompt("Masukkan URL Realtime Database:");
+    localStorage.setItem('firebaseDbUrl', savedUrl);
+    firebase.initializeApp({ databaseURL: savedUrl });
+    const db = firebase.database();
+
+    let playerName = '';
+    let currentQuizData = null;
+    let quizActive = false;
+
+    // Load Student Names
+    db.ref('students').once('value', snap => {
+      const select = document.getElementById('selectMyName');
+      select.innerHTML = '';
+      if(snap.exists()){
+        Object.keys(snap.val()).forEach(name => {
+          select.innerHTML += `<option value="${name}">${name}</option>`;
+        });
+      }
+    });
+
+    function confirmPlayer() {
+      playerName = document.getElementById('selectMyName').value;
+      if(!playerName) return alert("Pilih namamu!");
+      document.getElementById('myName').textContent = playerName;
+      document.getElementById('loginScreen').classList.add('hidden');
+
+      // Listen My Score
+      db.ref(`students/${playerName}/score`).on('value', snap => {
+        document.getElementById('myScore').textContent = snap.val() || 0;
+      });
+    }
+
+    // ANTI-CHEAT VISIBILITY API
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && quizActive && playerName) {
+        // Penalty -100
+        db.ref(`students/${playerName}/score`).transaction(s => (s || 0) - 100);
+        db.ref('logs').push({ name: playerName, time: new Date().toLocaleTimeString() });
+        document.getElementById('penaltyAlert').classList.remove('hidden');
+      }
+    });
+
+    // LISTEN GAME STATE
+    db.ref('currentGameState').on('value', snap => {
+      const data = snap.val();
+      if(data && data.status === 'QUIZ_ACTIVE') {
+        quizActive = true;
+        currentQuizData = data;
+        renderQuizButtons(data.questionData);
+      }
+    });
+
+    function renderQuizButtons(q) {
+      document.getElementById('quizArea').classList.remove('hidden');
+      document.getElementById('penaltyAlert').classList.add('hidden');
+      document.getElementById('qTextPlayer').textContent = q.question;
+      
+      const box = document.getElementById('optionsGroup');
+      box.innerHTML = '';
+
+      // Shuffle options for flat buttons
+      let opts = q.options.map((opt, i) => ({ text: opt, originalIdx: i }));
+      opts.sort(() => Math.random() - 0.5);
+
+      opts.forEach(o => {
+        const btn = document.createElement('button');
+        btn.className = "w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-xl text-xs font-semibold text-slate-200 transition-all";
+        btn.textContent = o.text;
+        btn.onclick = () => submitAnswer(o.originalIdx, btn);
+        box.appendChild(btn);
+      });
+    }
+
+    function submitAnswer(idx, btn) {
+      quizActive = false;
+      document.querySelectorAll('#optionsGroup button').forEach(b => b.disabled = true);
+      btn.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white'); // Poker face locking
+
+      const isCorrect = idx === currentQuizData.questionData.correct;
+      const elapsed = (Date.now() - currentQuizData.startTime) / 1000;
+      
+      if(isCorrect && elapsed <= 15) {
+        const speedBonus = Math.max(0, Math.round((15 - elapsed) * 6.6)); // Max 100 bonus
+        const totalEarned = 100 + speedBonus;
+        db.ref(`students/${playerName}/score`).transaction(s => (s || 0) + totalEarned);
+      }
+    }
+  </script>
+</body>
+</html>

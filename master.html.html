@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Game Master Control Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body class="bg-slate-900 text-white p-6 font-sans">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <header class="border-b border-slate-700 pb-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-amber-400">🎛️ Layar Game Master (Guru)</h1>
+      <span id="statusConn" class="bg-rose-600 text-xs px-3 py-1 rounded-full font-semibold">Memeriksa Database...</span>
+    </header>
+
+    <!-- SETUP CONFIG -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+      <h2 class="text-md font-bold mb-2 text-indigo-300">🔑 Pengaturan Firebase Config</h2>
+      <p class="text-xs text-slate-400 mb-2">Masukkan URL Realtime Database milikmu di sini:</p>
+      <input type="text" id="dbUrlInput" placeholder="https://nama-proyekmu-default-rtdb.firebaseio.com" class="w-full bg-slate-900 border border-slate-700 p-2 text-xs rounded text-amber-300 mb-2">
+      <button onclick="saveDbUrl()" class="bg-indigo-600 text-xs font-bold px-4 py-2 rounded hover:bg-indigo-500">Hubungkan Sinyal</button>
+    </section>
+
+    <!-- ATUR NAMA PEMAIN -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+      <h2 class="text-md font-bold mb-2 text-indigo-300">👥 Kelola Daftar Siswa</h2>
+      <div class="flex gap-2 mb-2">
+        <input type="text" id="inputStudent" placeholder="Ketik nama siswa lalu klik tambah..." class="flex-1 bg-slate-900 border border-slate-700 p-2 text-xs rounded">
+        <button onclick="addStudent()" class="bg-emerald-600 text-xs font-bold px-4 py-2 rounded hover:bg-emerald-500">+ Tambah Siswa</button>
+      </div>
+      <div id="studentList" class="flex flex-wrap gap-2 pt-2"></div>
+    </section>
+
+    <!-- ATUR SOAL KUIS -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+      <h2 class="text-md font-bold mb-2 text-indigo-300">📝 Kelola Soal & Gambar</h2>
+      <div class="space-y-3 text-xs">
+        <input type="text" id="qText" placeholder="Pertanyaan / Soal Matematika" class="w-full bg-slate-900 border border-slate-700 p-2 rounded">
+        <input type="text" id="qImg" placeholder="Link Gambar/Rumus (Opsional, cth: https://i.imgur.com/xxx.png)" class="w-full bg-slate-900 border border-slate-700 p-2 rounded">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <input type="text" id="optA" placeholder="Pilihan A" class="bg-slate-900 border border-slate-700 p-2 rounded">
+          <input type="text" id="optB" placeholder="Pilihan B" class="bg-slate-900 border border-slate-700 p-2 rounded">
+          <input type="text" id="optC" placeholder="Pilihan C" class="bg-slate-900 border border-slate-700 p-2 rounded">
+          <input type="text" id="optD" placeholder="Pilihan D" class="bg-slate-900 border border-slate-700 p-2 rounded">
+          <input type="text" id="optE" placeholder="Pilihan E" class="bg-slate-900 border border-slate-700 p-2 rounded">
+        </div>
+        <div class="flex items-center gap-4">
+          <label class="text-slate-300">Jawaban Benar:</label>
+          <select id="correctOpt" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-bold">
+            <option value="0">Pilihan A</option>
+            <option value="1">Pilihan B</option>
+            <option value="2">Pilihan C</option>
+            <option value="3">Pilihan D</option>
+            <option value="4">Pilihan E</option>
+          </select>
+          <button onclick="addQuestion()" class="bg-indigo-600 font-bold px-4 py-2 rounded text-white hover:bg-indigo-500 flex-1">+ Simpan Soal Ini</button>
+        </div>
+      </div>
+      <div id="quizBankList" class="mt-4 space-y-2 text-xs border-t border-slate-700 pt-3"></div>
+    </section>
+
+    <!-- TOMBOL KONTROL GAME -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+      <div>
+        <h3 class="text-sm font-bold text-amber-300">🎮 Jalankan Game Live</h3>
+        <p class="text-xs text-slate-400">Soal Aktif: <span id="currentQNum" class="font-bold text-white">Belum Ada</span></p>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="triggerNextQuiz()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm px-6 py-3 rounded-xl shadow-lg">🚀 KELUARKAN SOAL (15 DETIK)</button>
+        <button onclick="unfreezeScore()" class="bg-emerald-600 hover:bg-emerald-500 font-bold text-xs px-4 py-3 rounded-xl">🔓 BUKA SEGEL PEMENANG</button>
+      </div>
+    </section>
+
+    <!-- DAFTAR MONITORING / ANTI-CHEAT -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+      <h2 class="text-md font-bold mb-2 text-rose-400">🚩 Radar Pelanggaran Anti-AI (Pindah Tab)</h2>
+      <div id="cheatList" class="text-xs space-y-1 text-slate-300">Belum ada kecurangan terdeteksi.</div>
+    </section>
+  </div>
+
+  <script>
+    let db;
+    let questions = [];
+    let currentIdx = -1;
+
+    function saveDbUrl() {
+      const url = document.getElementById('dbUrlInput').value.trim();
+      if(!url) return alert("Masukkan URL Database!");
+      localStorage.setItem('firebaseDbUrl', url);
+      initDb(url);
+    }
+
+    function initDb(url) {
+      if (!firebase.apps.length) {
+        firebase.initializeApp({ databaseURL: url });
+      }
+      db = firebase.database();
+      document.getElementById('statusConn').textContent = "🟢 Sinyal Terhubung";
+      document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1 rounded-full font-semibold";
+      
+      // Listen Fraud
+      db.ref('logs').on('value', snap => {
+        const val = snap.val();
+        const box = document.getElementById('cheatList');
+        if(!val) return;
+        box.innerHTML = '';
+        Object.values(val).forEach(l => {
+          box.innerHTML += `<div class="bg-rose-950/50 border border-rose-800 p-2 rounded text-rose-300">🚩 <b>${l.name}</b> terdeteksi keluar arena pada ${l.time}! (Penalti -100 Poin)</div>`;
+        });
+      });
+    }
+
+    window.onload = () => {
+      const saved = localStorage.getItem('firebaseDbUrl');
+      if(saved) {
+        document.getElementById('dbUrlInput').value = saved;
+        initDb(saved);
+      }
+    };
+
+    function addStudent() {
+      const input = document.getElementById('inputStudent');
+      if(input.value.trim() && db) {
+        db.ref('students/' + input.value.trim()).set({ name: input.value.trim(), score: 0 });
+        input.value = '';
+        renderStudents();
+      }
+    }
+
+    function renderStudents() {
+      db.ref('students').once('value', snap => {
+        const box = document.getElementById('studentList');
+        box.innerHTML = '';
+        if(snap.exists()){
+          Object.keys(snap.val()).forEach(name => {
+            box.innerHTML += `<span class="bg-slate-700 px-3 py-1 rounded-full text-xs font-bold text-indigo-300">👤 ${name}</span>`;
+          });
+        }
+      });
+    }
+
+    function addQuestion() {
+      const q = {
+        question: document.getElementById('qText').value,
+        img: document.getElementById('qImg').value,
+        options: [
+          document.getElementById('optA').value,
+          document.getElementById('optB').value,
+          document.getElementById('optC').value,
+          document.getElementById('optD').value,
+          document.getElementById('optE').value
+        ],
+        correct: parseInt(document.getElementById('correctOpt').value)
+      };
+      if(q.question && q.options[0]) {
+        questions.push(q);
+        document.getElementById('qText').value = '';
+        document.getElementById('qImg').value = '';
+        renderQuizList();
+      }
+    }
+
+    function renderQuizList() {
+      const box = document.getElementById('quizBankList');
+      box.innerHTML = '';
+      questions.forEach((q, i) => {
+        box.innerHTML += `<div class="bg-slate-900 p-2 rounded border border-slate-700">Soal ${i+1}: ${q.question} (Jawaban: Pilihan ${['A','B','C','D','E'][q.correct]})</div>`;
+      });
+    }
+
+    function triggerNextQuiz() {
+      if(currentIdx + 1 >= questions.length) return alert("Semua soal sudah dikeluarkan!");
+      currentIdx++;
+      document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length}`;
+      
+      const isBlind = (questions.length - currentIdx) <= 3;
+
+      db.ref('currentGameState').set({
+        status: 'QUIZ_ACTIVE',
+        questionIndex: currentIdx,
+        questionData: questions[currentIdx],
+        startTime: Date.now(),
+        isBlind: isBlind
+      });
+    }
+
+    function unfreezeScore() {
+      db.ref('currentGameState/unfreeze').set(true);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Layar Proyektor - Live Leaderboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body class="bg-slate-950 text-white min-h-screen p-8 font-sans flex flex-col justify-between">
+  
+  <header class="flex justify-between items-center border-b border-slate-800 pb-4">
+    <h1 class="text-3xl font-extrabold text-amber-400 tracking-wider">⭐ STAR CHASE E-SPORTS</h1>
+    <div id="timerBox" class="text-4xl font-black text-rose-500 animate-pulse hidden">⏳ 15</div>
+  </header>
+
+  <!-- AREA KUIS PROYEKTOR -->
+  <main id="quizDisplay" class="my-6 hidden bg-slate-900/80 border border-slate-700 rounded-2xl p-6 text-center">
+    <h2 id="qTitle" class="text-2xl font-bold mb-4 text-indigo-200">...</h2>
+    <img id="qImage" src="" class="max-h-48 mx-auto rounded-lg mb-4 hidden border border-slate-700">
+    <div id="correctReveal" class="hidden bg-emerald-600/30 border border-emerald-500 p-3 rounded-xl text-emerald-300 font-extrabold text-lg">
+      ✅ JAWABAN BENAR: <span id="correctText"></span>
+    </div>
+  </main>
+
+  <!-- LEADERBOARD TOP 10 HORIZONTAL -->
+  <section class="flex-1 my-4">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-sm font-bold tracking-widest text-slate-400">PAPAN PERINGKAT (TOP 10)</h3>
+      <span id="blindNotice" class="hidden bg-amber-500/20 text-amber-400 text-xs font-bold px-3 py-1 rounded-full border border-amber-500">🔒 BLIND PHASE (SKOR DIKUNCI)</span>
+    </div>
+    <div id="leaderboardBars" class="space-y-3"></div>
+  </section>
+
+  <script>
+    const savedUrl = localStorage.getItem('firebaseDbUrl') || prompt("Masukkan URL Realtime Database:");
+    localStorage.setItem('firebaseDbUrl', savedUrl);
+    firebase.initializeApp({ databaseURL: savedUrl });
+    const db = firebase.database();
+
+    let isBlindMode = false;
+    let scores = {};
+
+    db.ref('students').on('value', snap => {
+      if(!snap.exists()) return;
+      scores = snap.val();
+      if(!isBlindMode) renderLeaderboard();
+    });
+
+    db.ref('currentGameState').on('value', snap => {
+      const data = snap.val();
+      if(!data) return;
+
+      if(data.status === 'QUIZ_ACTIVE') {
+        showQuiz(data);
+      }
+
+      if(data.unfreeze) {
+        isBlindMode = false;
+        document.getElementById('blindNotice').classList.add('hidden');
+        renderLeaderboard();
+      }
+    });
+
+    function showQuiz(data) {
+      isBlindMode = data.isBlind;
+      if(isBlindMode) document.getElementById('blindNotice').classList.remove('hidden');
+
+      const box = document.getElementById('quizDisplay');
+      const timer = document.getElementById('timerBox');
+      box.classList.remove('hidden');
+      timer.classList.remove('hidden');
+      document.getElementById('correctReveal').classList.add('hidden');
+
+      document.getElementById('qTitle').textContent = data.questionData.question;
+      if(data.questionData.img) {
+        document.getElementById('qImage').src = data.questionData.img;
+        document.getElementById('qImage').classList.remove('hidden');
+      } else {
+        document.getElementById('qImage').classList.add('hidden');
+      }
+
+      let timeLeft = 15;
+      timer.textContent = `⏳ ${timeLeft}`;
+      const interval = setInterval(() => {
+        timeLeft--;
+        timer.textContent = `⏳ ${timeLeft}`;
+        if(timeLeft <= 0) {
+          clearInterval(interval);
+          timer.classList.add('hidden');
+          // Reveal Correct
+          document.getElementById('correctReveal').classList.remove('hidden');
+          document.getElementById('correctText').textContent = data.questionData.options[data.questionData.correct];
+          if(!isBlindMode) renderLeaderboard();
+        }
+      }, 1000);
+    }
+
+    function renderLeaderboard() {
+      const box = document.getElementById('leaderboardBars');
+      box.innerHTML = '';
+      
+      const sorted = Object.values(scores).sort((a,b) => b.score - a.score).slice(0, 10);
+      const maxScore = Math.max(...sorted.map(s => s.score), 100);
+
+      sorted.forEach((p, idx) => {
+        const pct = Math.min(100, Math.max(10, (p.score / maxScore) * 100));
+        box.innerHTML += `
+          <div class="flex items-center gap-3 text-xs">
+            <span class="w-6 font-bold text-amber-400">#${idx+1}</span>
+            <span class="w-24 truncate font-semibold text-slate-200">${p.name}</span>
+            <div class="flex-1 bg-slate-900 rounded-full h-6 overflow-hidden border border-slate-800 relative">
+              <div class="bg-gradient-to-r from-indigo-600 to-amber-500 h-full transition-all duration-700" style="width: ${pct}%"></div>
+              <span class="absolute right-3 top-1 text-[10px] font-black text-white">${p.score} pts</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+  </script>
+</body>
+</html>
