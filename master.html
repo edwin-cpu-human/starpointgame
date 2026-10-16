@@ -17,14 +17,17 @@
     <!-- SETUP CONFIG -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
       <h2 class="text-md font-bold mb-2 text-indigo-300">🔑 Pengaturan Firebase Config</h2>
-      <p class="text-xs text-slate-400 mb-2">Masukkan URL Realtime Database milikmu di sini:</p>
+      <p class="text-xs text-slate-400 mb-2">URL Realtime Database milikmu:</p>
       <input type="text" id="dbUrlInput" value="https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/" class="w-full bg-slate-900 border border-slate-700 p-2 text-xs rounded text-amber-300 mb-2">
       <button onclick="saveDbUrl()" class="bg-indigo-600 text-xs font-bold px-4 py-2 rounded hover:bg-indigo-500">Hubungkan Sinyal</button>
     </section>
 
     <!-- ATUR NAMA PEMAIN -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-      <h2 class="text-md font-bold mb-2 text-indigo-300">👥 Kelola Daftar Siswa</h2>
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-md font-bold text-indigo-300">👥 Kelola Daftar Siswa</h2>
+        <button onclick="resetAllStudents()" class="bg-rose-700 hover:bg-rose-600 text-xs text-white font-bold px-3 py-1 rounded">🗑️ Hapus Semua Siswa</button>
+      </div>
       <div class="flex gap-2 mb-2">
         <input type="text" id="inputStudent" placeholder="Ketik nama siswa lalu klik tambah..." class="flex-1 bg-slate-900 border border-slate-700 p-2 text-xs rounded">
         <button onclick="addStudent()" class="bg-emerald-600 text-xs font-bold px-4 py-2 rounded hover:bg-emerald-500">+ Tambah Siswa</button>
@@ -99,7 +102,24 @@
       document.getElementById('statusConn').textContent = "🟢 Sinyal Terhubung";
       document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1 rounded-full font-semibold";
       
-      // Listen Fraud
+      // Auto-listen daftar siswa secara Real-time
+      db.ref('students').on('value', snap => {
+        const box = document.getElementById('studentList');
+        box.innerHTML = '';
+        if(snap.exists()){
+          Object.keys(snap.val()).forEach(name => {
+            box.innerHTML += `
+              <span class="bg-slate-700 px-3 py-1 rounded-full text-xs font-bold text-indigo-300 flex items-center gap-2">
+                👤 ${name}
+                <button onclick="deleteStudent('${name}')" class="text-rose-400 hover:text-rose-200 font-black">✕</button>
+              </span>`;
+          });
+        } else {
+          box.innerHTML = '<span class="text-xs text-slate-500">Belum ada siswa terdaftar.</span>';
+        }
+      });
+
+      // Listen Fraud / Cheat Logs
       db.ref('logs').on('value', snap => {
         const val = snap.val();
         const box = document.getElementById('cheatList');
@@ -112,32 +132,31 @@
     }
 
     window.onload = () => {
-      const saved = localStorage.getItem('firebaseDbUrl');
-      if(saved) {
-        document.getElementById('dbUrlInput').value = saved;
-        initDb(saved);
-      }
+      const saved = document.getElementById('dbUrlInput').value.trim();
+      if(saved) initDb(saved);
     };
 
     function addStudent() {
       const input = document.getElementById('inputStudent');
-      if(input.value.trim() && db) {
-        db.ref('students/' + input.value.trim()).set({ name: input.value.trim(), score: 0 });
+      const name = input.value.trim();
+      if(name && db) {
+        db.ref('students/' + name).set({ name: name, score: 0 });
         input.value = '';
-        renderStudents();
       }
     }
 
-    function renderStudents() {
-      db.ref('students').once('value', snap => {
-        const box = document.getElementById('studentList');
-        box.innerHTML = '';
-        if(snap.exists()){
-          Object.keys(snap.val()).forEach(name => {
-            box.innerHTML += `<span class="bg-slate-700 px-3 py-1 rounded-full text-xs font-bold text-indigo-300">👤 ${name}</span>`;
-          });
-        }
-      });
+    // Fungsi Hapus 1 Siswa Spesifik
+    function deleteStudent(name) {
+      if(confirm(`Yakin ingin menghapus ${name}?`) && db) {
+        db.ref('students/' + name).remove();
+      }
+    }
+
+    // Fungsi Hapus Semua Siswa
+    function resetAllStudents() {
+      if(confirm("Yakin ingin MENGHAPUS SEMUA SISWA & SKOR? Data tidak dapat dikembalikan.") && db) {
+        db.ref('students').remove();
+      }
     }
 
     function addQuestion() {
@@ -157,6 +176,11 @@
         questions.push(q);
         document.getElementById('qText').value = '';
         document.getElementById('qImg').value = '';
+        document.getElementById('optA').value = '';
+        document.getElementById('optB').value = '';
+        document.getElementById('optC').value = '';
+        document.getElementById('optD').value = '';
+        document.getElementById('optE').value = '';
         renderQuizList();
       }
     }
@@ -170,6 +194,7 @@
     }
 
     function triggerNextQuiz() {
+      if(questions.length === 0) return alert("Tambahkan soal terlebih dahulu!");
       if(currentIdx + 1 >= questions.length) return alert("Semua soal sudah dikeluarkan!");
       currentIdx++;
       document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length}`;
@@ -186,7 +211,7 @@
     }
 
     function unfreezeScore() {
-      db.ref('currentGameState/unfreeze').set(true);
+      if(db) db.ref('currentGameState/unfreeze').set(true);
     }
   </script>
 </body>
