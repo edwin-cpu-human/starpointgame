@@ -33,8 +33,9 @@
   </section>
 
   <script>
-    const savedUrl = localStorage.getItem('firebaseDbUrl') || prompt("Masukkan URL Realtime Database:");
-    localStorage.setItem('firebaseDbUrl', savedUrl);
+    <script>
+    // URL Realtime Database milikmu sudah terpasang otomatis
+    const savedUrl = "https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/";
     firebase.initializeApp({ databaseURL: savedUrl });
     const db = firebase.database();
 
