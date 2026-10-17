@@ -2,20 +2,31 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Layar Proyektor - Live Leaderboard</title>
+  <title>Bintang Juara - Live Arena Proyektor</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <!-- KaTeX Rendering untuk Matematika -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 </head>
 <body class="bg-slate-950 text-white min-h-screen p-8 font-sans flex flex-col justify-between">
   
   <header class="flex justify-between items-center border-b border-slate-800 pb-4">
-    <h1 class="text-3xl font-extrabold text-amber-400 tracking-wider">⭐ BINTANG JUARA</h1>
+    <div>
+      <h1 class="text-3xl font-black text-amber-400 tracking-wider">⭐ BINTANG JUARA</h1>
+      <p class="text-xs text-slate-400">Papan Peringkat Live E-Sports Kelas</p>
+    </div>
     <div id="timerBox" class="text-4xl font-black text-rose-500 animate-pulse hidden">⏳ 15</div>
   </header>
 
   <!-- AREA KUIS PROYEKTOR -->
   <main id="quizDisplay" class="my-6 hidden bg-slate-900/80 border border-slate-700 rounded-2xl p-6 text-center">
+    <div class="mb-2">
+      <span id="projSubMapel" class="bg-indigo-900 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full border border-indigo-700">Sub-Mapel</span>
+    </div>
     <h2 id="qTitle" class="text-2xl font-bold mb-4 text-indigo-200">...</h2>
     <img id="qImage" src="" class="max-h-48 mx-auto rounded-lg mb-4 hidden border border-slate-700">
     <div id="correctReveal" class="hidden bg-emerald-600/30 border border-emerald-500 p-3 rounded-xl text-emerald-300 font-extrabold text-lg">
@@ -35,7 +46,6 @@
   </section>
 
   <script>
-    // Inisialisasi Firebase
     const savedUrl = "https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/";
     
     if (!firebase.apps.length) {
@@ -46,7 +56,6 @@
     let isBlindMode = false;
     let scores = {};
 
-    // Listen data siswa & skor
     db.ref('students').on('value', snap => {
       if(!snap.exists()) {
         document.getElementById('leaderboardBars').innerHTML = '<div class="text-xs text-slate-500 text-center py-4">Belum ada siswa terdaftar.</div>';
@@ -56,7 +65,6 @@
       if(!isBlindMode) renderLeaderboard();
     });
 
-    // Listen status kuis live
     db.ref('currentGameState').on('value', snap => {
       const data = snap.val();
       if(!data) return;
@@ -82,13 +90,24 @@
       timer.classList.remove('hidden');
       document.getElementById('correctReveal').classList.add('hidden');
 
+      document.getElementById('projSubMapel').textContent = data.questionData.subMapel || 'Matematika';
       document.getElementById('qTitle').textContent = data.questionData.question;
+      
       if(data.questionData.img) {
         document.getElementById('qImage').src = data.questionData.img;
         document.getElementById('qImage').classList.remove('hidden');
       } else {
         document.getElementById('qImage').classList.add('hidden');
       }
+
+      // Render KaTeX untuk Proyektor
+      renderMathInElement(box, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
 
       let timeLeft = 15;
       timer.textContent = `⏳ ${timeLeft}`;
@@ -98,9 +117,19 @@
         if(timeLeft <= 0) {
           clearInterval(interval);
           timer.classList.add('hidden');
-          // Tampilkan Jawaban Benar & Leaderboard
+          
           document.getElementById('correctReveal').classList.remove('hidden');
           document.getElementById('correctText').textContent = data.questionData.options[data.questionData.correct];
+          
+          // Render lagi untuk jawaban benar
+          renderMathInElement(document.getElementById('correctReveal'), {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false}
+            ],
+            throwOnError: false
+          });
+
           if(!isBlindMode) renderLeaderboard();
         }
       }, 1000);
