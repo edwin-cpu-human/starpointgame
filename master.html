@@ -55,10 +55,10 @@
       <div id="studentList" class="flex flex-wrap gap-2 pt-2"></div>
     </section>
 
-    <!-- KELOLA BANK SOAL + FITUR IMPORT WORD (.DOCX) -->
+    <!-- KELOLA BANK SOAL + FITUR IMPORT WORD & PENYIMPANAN PERMANEN -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4">
       <div class="flex flex-wrap justify-between items-center gap-2">
-        <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal</h2>
+        <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal (Tersimpan Permanen)</h2>
         
         <!-- AREA UPLOAD FILE WORD -->
         <div class="flex items-center gap-2 bg-indigo-950 border border-indigo-700 p-1.5 rounded-lg">
@@ -173,6 +173,7 @@
       document.getElementById('statusConn').textContent = "🟢 Sinyal Terhubung";
       document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1.5 rounded-full font-bold";
       
+      // Auto-listen data siswa & skor
       db.ref('students').on('value', snap => {
         const box = document.getElementById('studentList');
         box.innerHTML = '';
@@ -192,6 +193,20 @@
         }
       });
 
+      // Auto-listen Bank Soal secara Real-time dari Firebase Database
+      db.ref('bankSoal').on('value', snap => {
+        if(snap.exists()){
+          const data = snap.val();
+          // Ubah objek database menjadi array soal
+          questions = Object.keys(data).map(key => ({ firebaseKey: key, ...data[key] }));
+        } else {
+          questions = [];
+        }
+        updateMapelFilterOptions();
+        renderQuizList();
+      });
+
+      // Auto-listen Log Kecurangan
       db.ref('logs').on('value', snap => {
         const box = document.getElementById('cheatList');
         if(!snap.exists()) {
@@ -274,7 +289,7 @@
       });
     }
 
-    // FUNGSI IMPORT FILE WORD (.DOCX)
+    // IMPORT FILE WORD (.DOCX) & SIMPAN KE DATABASE
     function importWordFile() {
       const fileInput = document.getElementById('wordFileInput');
       if (!fileInput.files || fileInput.files.length === 0) {
@@ -288,7 +303,7 @@
         const arrayBuffer = e.target.result;
         mammoth.extractRawText({ arrayBuffer: arrayBuffer })
           .then(function(result) {
-            parseWordContent(result.value);
+            parseAndSaveWordContent(result.value);
           })
           .catch(function(err) {
             alert("Gagal membaca file Word: " + err.message);
@@ -298,14 +313,12 @@
       reader.readAsArrayBuffer(file);
     }
 
-    // PARSER TEKS FILE WORD KE BANK SOAL
-    function parseWordContent(text) {
+    function parseAndSaveWordContent(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       
       let currentMapel = 'Matematika';
       let currentSubMapel = 'Umum';
       let importedCount = 0;
-
       let tempQ = null;
 
       lines.forEach(line => {
@@ -314,9 +327,8 @@
         } else if (line.toLowerCase().startsWith('sub-mapel:') || line.toLowerCase().startsWith('submapel:')) {
           currentSubMapel = line.split(':')[1].trim();
         } else if (/^\d+[\.\)]/.test(line)) {
-          // Soal baru terdeteksi (contoh: 1. atau 1))
           if (tempQ && tempQ.question && tempQ.options.length >= 2) {
-            questions.push(tempQ);
+            db.ref('bankSoal').push(tempQ);
             importedCount++;
           }
           const qTextClean = line.replace(/^\d+[\.\)]/, '').trim();
@@ -329,11 +341,9 @@
             correct: 0
           };
         } else if (/^[A-E][\.\)]/i.test(line) && tempQ) {
-          // Pilihan Jawaban terdeteksi (contoh: A. atau B))
           const optTextClean = line.replace(/^[A-E][\.\)]/i, '').trim();
           tempQ.options.push(convertToLatex(optTextClean));
         } else if (line.toLowerCase().startsWith('kunci:') && tempQ) {
-          // Kunci Jawaban terdeteksi (contoh: Kunci: A)
           const keyLetter = line.split(':')[1].trim().toUpperCase();
           const mapKey = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4 };
           if (mapKey[keyLetter] !== undefined) {
@@ -342,16 +352,14 @@
         }
       });
 
-      // Simpan soal terakhir
       if (tempQ && tempQ.question && tempQ.options.length >= 2) {
-        questions.push(tempQ);
+        db.ref('bankSoal').push(tempQ);
         importedCount++;
       }
 
       if (importedCount > 0) {
-        alert(`Berhasil mengimpor ${importedCount} soal dari Word!`);
-        updateMapelFilterOptions();
-        renderQuizList();
+        alert(`Berhasil mengimpor dan menyimpan ${importedCount} soal ke database secara permanen!`);
+        fileInput.value = '';
       } else {
         alert("Tidak ada soal yang berhasil dibaca. Pastikan format Word sesuai petunjuk!");
       }
@@ -380,7 +388,10 @@
         correct: parseInt(document.getElementById('correctOpt').value)
       };
 
-      questions.push(q);
+      // Simpan langsung ke Firebase Database (Permanen)
+      db.ref('bankSoal').push(q);
+
+      // Bersihkan form input
       document.getElementById('qText').value = '';
       document.getElementById('mathPreviewText').textContent = '...';
       document.getElementById('qImg').value = '';
@@ -389,9 +400,6 @@
       document.getElementById('optC').value = '';
       document.getElementById('optD').value = '';
       document.getElementById('optE').value = '';
-      
-      updateMapelFilterOptions();
-      renderQuizList();
     }
 
     function updateMapelFilterOptions() {
@@ -440,7 +448,6 @@
       }
 
       filtered.forEach((q) => {
-        const originalIndex = questions.indexOf(q);
         const labels = ['A', 'B', 'C', 'D', 'E'];
         box.innerHTML += `
           <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl flex justify-between items-start gap-3">
@@ -448,7 +455,7 @@
               <div class="flex items-center gap-2">
                 <span class="bg-amber-900 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-700">${q.mapel}</span>
                 <span class="bg-indigo-900 text-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-700">${q.subMapel}</span>
-                <span class="font-bold text-slate-300">Soal #${originalIndex+1}: ${q.question}</span>
+                <span class="font-bold text-slate-300">Soal: ${q.question}</span>
               </div>
               <div class="text-[11px] text-slate-400 flex flex-wrap gap-2 pt-1">
                 ${q.options.map((opt, idx) => `
@@ -458,7 +465,7 @@
                 `).join(' • ')}
               </div>
             </div>
-            <button onclick="deleteQuestion(${originalIndex})" class="text-rose-400 hover:text-rose-200 font-bold p-1 bg-slate-800 rounded-lg border border-slate-700">🗑️ Hapus</button>
+            <button onclick="deleteQuestion('${q.firebaseKey}')" class="text-rose-400 hover:text-rose-200 font-bold p-1 bg-slate-800 rounded-lg border border-slate-700">🗑️ Hapus</button>
           </div>`;
       });
 
@@ -471,10 +478,11 @@
       });
     }
 
-    function deleteQuestion(index) {
-      questions.splice(index, 1);
-      updateMapelFilterOptions();
-      renderQuizList();
+    // HAPUS SOAL PERMANEN DARI DATABASE
+    function deleteQuestion(firebaseKey) {
+      if(confirm("Yakin ingin menghapus soal ini dari Bank Soal?") && db) {
+        db.ref('bankSoal/' + firebaseKey).remove();
+      }
     }
 
     function triggerNextQuiz() {
