@@ -9,6 +9,8 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <!-- Library SheetJS untuk Export Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Library Mammoth.js untuk Import Microsoft Word (.docx) -->
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
   
   <!-- KaTeX Rendering untuk Matematika -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
@@ -53,19 +55,30 @@
       <div id="studentList" class="flex flex-wrap gap-2 pt-2"></div>
     </section>
 
-    <!-- KELOLA BANK SOAL + AUTO-LATEX & LIVE PREVIEW -->
-    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-      <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal Matematika (Auto-LaTeX)</h2>
-      <div class="space-y-2 text-xs">
+    <!-- KELOLA BANK SOAL + FITUR IMPORT WORD (.DOCX) -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4">
+      <div class="flex flex-wrap justify-between items-center gap-2">
+        <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal</h2>
         
+        <!-- AREA UPLOAD FILE WORD -->
+        <div class="flex items-center gap-2 bg-indigo-950 border border-indigo-700 p-1.5 rounded-lg">
+          <span class="text-xs text-indigo-200 font-semibold pl-1">📄 Upload Word (.docx):</span>
+          <input type="file" id="wordFileInput" accept=".docx" class="text-xs text-slate-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
+          <button onclick="importWordFile()" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-3 py-1 rounded">Proses Upload</button>
+        </div>
+      </div>
+
+      <!-- INPUT MANUAL SOAL -->
+      <div class="space-y-2 text-xs border-t border-slate-700 pt-3">
+        <h3 class="text-xs font-bold text-slate-400">Atau Input Manual (Auto-LaTeX):</h3>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <input type="text" id="qSubMapel" placeholder="Sub-Mapel (cth: Aljabar, Trigonometri)" class="sm:col-span-2 bg-slate-900 border border-slate-700 p-2.5 rounded text-amber-300 font-semibold">
+          <input type="text" id="qMapel" placeholder="Nama Mapel (cth: Matematika)" class="bg-slate-900 border border-slate-700 p-2.5 rounded text-amber-300 font-bold" value="Matematika">
+          <input type="text" id="qSubMapel" placeholder="Sub-Mapel (cth: Aljabar)" class="bg-slate-900 border border-slate-700 p-2.5 rounded text-indigo-300 font-bold">
           <input type="text" id="qImg" placeholder="Link Gambar (Opsional)" class="bg-slate-900 border border-slate-700 p-2.5 rounded">
         </div>
 
         <div>
-          <textarea id="qText" oninput="updateLivePreview()" placeholder="Ketik soal... (Contoh: Berapakah hasil dari sqrt(16) + 3/4?)" class="w-full bg-slate-900 border border-slate-700 p-2.5 rounded h-20 text-slate-200"></textarea>
-          <!-- KOTAK LIVE PREVIEW SOAL -->
+          <textarea id="qText" oninput="updateLivePreview()" placeholder="Ketik soal... (Contoh: Berapakah hasil dari sqrt(25) + 3/4?)" class="w-full bg-slate-900 border border-slate-700 p-2.5 rounded h-20 text-slate-200"></textarea>
           <div id="mathPreviewBox" class="mt-1 p-2 bg-slate-950 border border-indigo-500/30 rounded text-amber-300 min-h-[32px] flex items-center gap-2">
             <span class="text-[10px] text-slate-500 font-mono">[Pratinjau Rumus]:</span>
             <div id="mathPreviewText" class="text-sm font-semibold">...</div>
@@ -73,7 +86,7 @@
         </div>
         
         <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
-          <input type="text" id="optA" placeholder="Pilihan A (cth: 1/2)" class="bg-slate-900 border border-slate-700 p-2 rounded">
+          <input type="text" id="optA" placeholder="Pilihan A" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optB" placeholder="Pilihan B" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optC" placeholder="Pilihan C" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optD" placeholder="Pilihan D" class="bg-slate-900 border border-slate-700 p-2 rounded">
@@ -93,13 +106,18 @@
         </div>
       </div>
 
-      <!-- FILTER BANK SOAL BERDASARKAN SUB MAPEL -->
-      <div class="border-t border-slate-700 pt-3 mt-3">
-        <div class="flex justify-between items-center mb-2">
+      <!-- FILTER BANK SOAL BERDASARKAN MAPEL & SUB-MAPEL -->
+      <div class="border-t border-slate-700 pt-3 mt-3 space-y-2">
+        <div class="flex flex-wrap justify-between items-center gap-2">
           <h3 class="text-xs font-bold text-slate-400">Daftar Soal Tersimpan:</h3>
-          <select id="filterCategory" onchange="renderQuizList()" class="bg-slate-900 border border-slate-700 text-xs p-1.5 rounded text-indigo-300 font-bold">
-            <option value="ALL">Semua Sub-Mapel</option>
-          </select>
+          <div class="flex gap-2">
+            <select id="filterMapel" onchange="updateSubMapelDropdown(); renderQuizList();" class="bg-slate-900 border border-slate-700 text-xs p-1.5 rounded text-amber-300 font-bold">
+              <option value="ALL">Semua Mapel</option>
+            </select>
+            <select id="filterSubMapel" onchange="renderQuizList()" class="bg-slate-900 border border-slate-700 text-xs p-1.5 rounded text-indigo-300 font-bold">
+              <option value="ALL">Semua Sub-Mapel</option>
+            </select>
+          </div>
         </div>
         <div id="quizBankList" class="space-y-2 text-xs"></div>
       </div>
@@ -112,7 +130,6 @@
         <p class="text-xs text-slate-400">Soal Aktif: <span id="currentQNum" class="font-bold text-white">Belum Ada</span></p>
       </div>
       
-      <!-- TIMER SYNC KELUAR DI LAYAR GURU -->
       <div id="teacherTimerBox" class="bg-slate-900 border border-rose-500/50 px-4 py-2 rounded-xl text-center hidden">
         <span class="text-[10px] text-slate-400 block uppercase font-bold">Sisa Waktu:</span>
         <span id="teacherTimer" class="text-2xl font-black text-rose-500">⏳ 15</span>
@@ -156,7 +173,6 @@
       document.getElementById('statusConn').textContent = "🟢 Sinyal Terhubung";
       document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1.5 rounded-full font-bold";
       
-      // Auto-listen data siswa & skor
       db.ref('students').on('value', snap => {
         const box = document.getElementById('studentList');
         box.innerHTML = '';
@@ -176,7 +192,6 @@
         }
       });
 
-      // Auto-listen Log Kecurangan
       db.ref('logs').on('value', snap => {
         const box = document.getElementById('cheatList');
         if(!snap.exists()) {
@@ -259,15 +274,100 @@
       });
     }
 
+    // FUNGSI IMPORT FILE WORD (.DOCX)
+    function importWordFile() {
+      const fileInput = document.getElementById('wordFileInput');
+      if (!fileInput.files || fileInput.files.length === 0) {
+        return alert("Pilih file Microsoft Word (.docx) terlebih dahulu!");
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        mammoth.extractRawText({ arrayBuffer: arrayBuffer })
+          .then(function(result) {
+            parseWordContent(result.value);
+          })
+          .catch(function(err) {
+            alert("Gagal membaca file Word: " + err.message);
+          });
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    // PARSER TEKS FILE WORD KE BANK SOAL
+    function parseWordContent(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      let currentMapel = 'Matematika';
+      let currentSubMapel = 'Umum';
+      let importedCount = 0;
+
+      let tempQ = null;
+
+      lines.forEach(line => {
+        if (line.toLowerCase().startsWith('mapel:')) {
+          currentMapel = line.split(':')[1].trim();
+        } else if (line.toLowerCase().startsWith('sub-mapel:') || line.toLowerCase().startsWith('submapel:')) {
+          currentSubMapel = line.split(':')[1].trim();
+        } else if (/^\d+[\.\)]/.test(line)) {
+          // Soal baru terdeteksi (contoh: 1. atau 1))
+          if (tempQ && tempQ.question && tempQ.options.length >= 2) {
+            questions.push(tempQ);
+            importedCount++;
+          }
+          const qTextClean = line.replace(/^\d+[\.\)]/, '').trim();
+          tempQ = {
+            mapel: currentMapel,
+            subMapel: currentSubMapel,
+            question: convertToLatex(qTextClean),
+            img: '',
+            options: [],
+            correct: 0
+          };
+        } else if (/^[A-E][\.\)]/i.test(line) && tempQ) {
+          // Pilihan Jawaban terdeteksi (contoh: A. atau B))
+          const optTextClean = line.replace(/^[A-E][\.\)]/i, '').trim();
+          tempQ.options.push(convertToLatex(optTextClean));
+        } else if (line.toLowerCase().startsWith('kunci:') && tempQ) {
+          // Kunci Jawaban terdeteksi (contoh: Kunci: A)
+          const keyLetter = line.split(':')[1].trim().toUpperCase();
+          const mapKey = { 'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4 };
+          if (mapKey[keyLetter] !== undefined) {
+            tempQ.correct = mapKey[keyLetter];
+          }
+        }
+      });
+
+      // Simpan soal terakhir
+      if (tempQ && tempQ.question && tempQ.options.length >= 2) {
+        questions.push(tempQ);
+        importedCount++;
+      }
+
+      if (importedCount > 0) {
+        alert(`Berhasil mengimpor ${importedCount} soal dari Word!`);
+        updateMapelFilterOptions();
+        renderQuizList();
+      } else {
+        alert("Tidak ada soal yang berhasil dibaca. Pastikan format Word sesuai petunjuk!");
+      }
+    }
+
     function addQuestion() {
+      const mapel = document.getElementById('qMapel').value.trim() || 'Umum';
+      const subMapel = document.getElementById('qSubMapel').value.trim() || 'Umum';
       const rawQText = document.getElementById('qText').value.trim();
       const rawOptA = document.getElementById('optA').value.trim();
-      const sub = document.getElementById('qSubMapel').value.trim() || 'Matematika';
 
       if(!rawQText || !rawOptA) return alert("Isi soal dan pilihan jawaban!");
 
       const q = {
-        subMapel: sub,
+        mapel: mapel,
+        subMapel: subMapel,
         question: convertToLatex(rawQText),
         img: document.getElementById('qImg').value.trim(),
         options: [
@@ -290,43 +390,65 @@
       document.getElementById('optD').value = '';
       document.getElementById('optE').value = '';
       
-      updateSubMapelFilterOptions();
+      updateMapelFilterOptions();
       renderQuizList();
     }
 
-    function updateSubMapelFilterOptions() {
-      const select = document.getElementById('filterCategory');
-      const currentVal = select.value;
-      const categories = [...new Set(questions.map(q => q.subMapel))];
+    function updateMapelFilterOptions() {
+      const selectMapel = document.getElementById('filterMapel');
+      const currentMapelVal = selectMapel.value;
+      const mapels = [...new Set(questions.map(q => q.mapel))];
       
-      select.innerHTML = '<option value="ALL">Semua Sub-Mapel</option>';
-      categories.forEach(c => {
-        select.innerHTML += `<option value="${c}">${c}</option>`;
+      selectMapel.innerHTML = '<option value="ALL">Semua Mapel</option>';
+      mapels.forEach(m => {
+        selectMapel.innerHTML += `<option value="${m}">${m}</option>`;
       });
-      select.value = currentVal;
+      selectMapel.value = currentMapelVal;
+      updateSubMapelDropdown();
+    }
+
+    function updateSubMapelDropdown() {
+      const selectMapelVal = document.getElementById('filterMapel').value;
+      const selectSub = document.getElementById('filterSubMapel');
+      const currentSubVal = selectSub.value;
+
+      let filteredQ = selectMapelVal === 'ALL' ? questions : questions.filter(q => q.mapel === selectMapelVal);
+      let subMapels = [...new Set(filteredQ.map(q => q.subMapel))];
+
+      selectSub.innerHTML = '<option value="ALL">Semua Sub-Mapel</option>';
+      subMapels.forEach(s => {
+        selectSub.innerHTML += `<option value="${s}">${s}</option>`;
+      });
+      selectSub.value = currentSubVal;
     }
 
     function renderQuizList() {
       const box = document.getElementById('quizBankList');
-      const filterVal = document.getElementById('filterCategory').value;
+      const mapelVal = document.getElementById('filterMapel').value;
+      const subVal = document.getElementById('filterSubMapel').value;
       box.innerHTML = '';
 
-      const filtered = filterVal === 'ALL' ? questions : questions.filter(q => q.subMapel === filterVal);
+      let filtered = questions.filter(q => {
+        let matchMapel = (mapelVal === 'ALL' || q.mapel === mapelVal);
+        let matchSub = (subVal === 'ALL' || q.subMapel === subVal);
+        return matchMapel && matchSub;
+      });
 
       if(filtered.length === 0) {
         box.innerHTML = '<span class="text-slate-500">Belum ada soal pada kategori ini.</span>';
         return;
       }
 
-      filtered.forEach((q, i) => {
+      filtered.forEach((q) => {
         const originalIndex = questions.indexOf(q);
         const labels = ['A', 'B', 'C', 'D', 'E'];
         box.innerHTML += `
           <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl flex justify-between items-start gap-3">
             <div class="space-y-1 flex-1">
               <div class="flex items-center gap-2">
+                <span class="bg-amber-900 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-700">${q.mapel}</span>
                 <span class="bg-indigo-900 text-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-700">${q.subMapel}</span>
-                <span class="font-bold text-amber-300">Soal #${originalIndex+1}: ${q.question}</span>
+                <span class="font-bold text-slate-300">Soal #${originalIndex+1}: ${q.question}</span>
               </div>
               <div class="text-[11px] text-slate-400 flex flex-wrap gap-2 pt-1">
                 ${q.options.map((opt, idx) => `
@@ -351,7 +473,7 @@
 
     function deleteQuestion(index) {
       questions.splice(index, 1);
-      updateSubMapelFilterOptions();
+      updateMapelFilterOptions();
       renderQuizList();
     }
 
@@ -360,7 +482,7 @@
       if(currentIdx + 1 >= questions.length) return alert("Semua soal sudah dikeluarkan!");
       
       currentIdx++;
-      document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length} (${questions[currentIdx].subMapel})`;
+      document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length} [${questions[currentIdx].mapel} > ${questions[currentIdx].subMapel}]`;
       
       const isBlind = (questions.length - currentIdx) <= 3;
 
