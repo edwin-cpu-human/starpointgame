@@ -9,6 +9,11 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <!-- Library SheetJS untuk Export Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <!-- KaTeX Rendering untuk Matematika -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 </head>
 <body class="bg-slate-900 text-white p-6 font-sans">
   <div class="max-w-4xl mx-auto space-y-6">
@@ -31,9 +36,9 @@
 
     <!-- KELOLA SISWA & HASIL EXCEL -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-      <div class="flex justify-between items-center">
+      <div class="flex flex-wrap justify-between items-center gap-2">
         <h2 class="text-sm font-bold text-indigo-300">👥 Kelola Daftar Siswa & Skor</h2>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold px-3 py-1.5 rounded shadow">📊 Download Hasil (Excel)</button>
           <button onclick="resetScoresOnly()" class="bg-amber-600 hover:bg-amber-500 text-xs text-white font-bold px-3 py-1.5 rounded">🔄 Reset Skor Semua Siswa</button>
           <button onclick="resetAllStudents()" class="bg-rose-700 hover:bg-rose-600 text-xs text-white font-bold px-3 py-1.5 rounded">🗑️ Hapus Semua Siswa</button>
@@ -48,15 +53,27 @@
       <div id="studentList" class="flex flex-wrap gap-2 pt-2"></div>
     </section>
 
-    <!-- KELOLA SOAL & GAMBAR -->
+    <!-- KELOLA BANK SOAL + AUTO-LATEX & LIVE PREVIEW -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-      <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal</h2>
+      <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal Matematika (Auto-LaTeX)</h2>
       <div class="space-y-2 text-xs">
-        <input type="text" id="qText" placeholder="Pertanyaan / Soal Kuis" class="w-full bg-slate-900 border border-slate-700 p-2.5 rounded">
-        <input type="text" id="qImg" placeholder="Link Gambar/Rumus (Opsional, cth: https://i.imgur.com/xxx.png)" class="w-full bg-slate-900 border border-slate-700 p-2 rounded">
         
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <input type="text" id="optA" placeholder="Pilihan A" class="bg-slate-900 border border-slate-700 p-2 rounded">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input type="text" id="qSubMapel" placeholder="Sub-Mapel (cth: Aljabar, Trigonometri)" class="sm:col-span-2 bg-slate-900 border border-slate-700 p-2.5 rounded text-amber-300 font-semibold">
+          <input type="text" id="qImg" placeholder="Link Gambar (Opsional)" class="bg-slate-900 border border-slate-700 p-2.5 rounded">
+        </div>
+
+        <div>
+          <textarea id="qText" oninput="updateLivePreview()" placeholder="Ketik soal... (Contoh: Berapakah hasil dari sqrt(16) + 3/4?)" class="w-full bg-slate-900 border border-slate-700 p-2.5 rounded h-20 text-slate-200"></textarea>
+          <!-- KOTAK LIVE PREVIEW SOAL -->
+          <div id="mathPreviewBox" class="mt-1 p-2 bg-slate-950 border border-indigo-500/30 rounded text-amber-300 min-h-[32px] flex items-center gap-2">
+            <span class="text-[10px] text-slate-500 font-mono">[Pratinjau Rumus]:</span>
+            <div id="mathPreviewText" class="text-sm font-semibold">...</div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+          <input type="text" id="optA" placeholder="Pilihan A (cth: 1/2)" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optB" placeholder="Pilihan B" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optC" placeholder="Pilihan C" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optD" placeholder="Pilihan D" class="bg-slate-900 border border-slate-700 p-2 rounded">
@@ -72,13 +89,18 @@
             <option value="3">Pilihan D</option>
             <option value="4">Pilihan E</option>
           </select>
-          <button onclick="addQuestion()" class="bg-indigo-600 hover:bg-indigo-500 font-bold px-4 py-2 rounded text-white flex-1">+ Simpan Soal Ini</button>
+          <button onclick="addQuestion()" class="bg-indigo-600 hover:bg-indigo-500 font-bold px-4 py-2 rounded text-white flex-1">+ Simpan Soal Ke Bank</button>
         </div>
       </div>
 
-      <!-- DAFTAR KARTU SOAL DENGAN TAMPILAN BARU -->
+      <!-- FILTER BANK SOAL BERDASARKAN SUB MAPEL -->
       <div class="border-t border-slate-700 pt-3 mt-3">
-        <h3 class="text-xs font-bold text-slate-400 mb-2">Daftar Soal Tersimpan:</h3>
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-xs font-bold text-slate-400">Daftar Soal Tersimpan:</h3>
+          <select id="filterCategory" onchange="renderQuizList()" class="bg-slate-900 border border-slate-700 text-xs p-1.5 rounded text-indigo-300 font-bold">
+            <option value="ALL">Semua Sub-Mapel</option>
+          </select>
+        </div>
         <div id="quizBankList" class="space-y-2 text-xs"></div>
       </div>
     </section>
@@ -191,67 +213,122 @@
       if(confirm(`Hapus ${name}?`) && db) db.ref('students/' + name).remove();
     }
 
-    // FUNGSI 1: RESET SKOR HANYA (NAMA DIBIARKAN)
     function resetScoresOnly() {
-      if(confirm("Yakin ingin MERESET SEMUA SKOR SISWA MENJADI 0? (Nama siswa tidak dihapus)") && db) {
+      if(confirm("Yakin ingin MERESET SEMUA SKOR SISWA MENJADI 0?") && db) {
         Object.keys(studentDataCache).forEach(name => {
           db.ref(`students/${name}/score`).set(0);
         });
       }
     }
 
-    // FUNGSI 2: RESET TOTAL (HAPUS SEMUA SISWA)
     function resetAllStudents() {
       if(confirm("Yakin ingin MENGHAPUS SEMUA SISWA DAN SKOR?") && db) {
         db.ref('students').remove();
       }
     }
 
+    // KONVERSI OTOMATIS TEKS LOKAL KE LATEX
+    function convertToLatex(text) {
+      if(!text) return '';
+      let formatted = text;
+
+      formatted = formatted.replace(/(?:sqrt|akar)\((.*?)\)/gi, '\\sqrt{$1}');
+      formatted = formatted.replace(/([a-zA-Z0-9_]+)\/([a-zA-Z0-9_]+)/g, '\\frac{$1}{$2}');
+      formatted = formatted.replace(/\^([a-zA-Z0-9_]+)/g, '^{$1}');
+      formatted = formatted.replace(/\*/g, ' \\times ');
+
+      if(formatted.includes('\\') || formatted.includes('^')) {
+        return `$${formatted}$`;
+      }
+      return formatted;
+    }
+
+    function updateLivePreview() {
+      const rawText = document.getElementById('qText').value;
+      const previewEl = document.getElementById('mathPreviewText');
+      
+      const latexText = convertToLatex(rawText);
+      previewEl.textContent = latexText;
+
+      renderMathInElement(previewEl, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
+    }
+
     function addQuestion() {
-      const qText = document.getElementById('qText').value.trim();
-      const optA = document.getElementById('optA').value.trim();
-      if(!qText || !optA) return alert("Isi soal dan pilihan jawaban!");
+      const rawQText = document.getElementById('qText').value.trim();
+      const rawOptA = document.getElementById('optA').value.trim();
+      const sub = document.getElementById('qSubMapel').value.trim() || 'Matematika';
+
+      if(!rawQText || !rawOptA) return alert("Isi soal dan pilihan jawaban!");
 
       const q = {
-        question: qText,
+        subMapel: sub,
+        question: convertToLatex(rawQText),
         img: document.getElementById('qImg').value.trim(),
         options: [
-          optA,
-          document.getElementById('optB').value.trim(),
-          document.getElementById('optC').value.trim(),
-          document.getElementById('optD').value.trim(),
-          document.getElementById('optE').value.trim()
+          convertToLatex(rawOptA),
+          convertToLatex(document.getElementById('optB').value.trim()),
+          convertToLatex(document.getElementById('optC').value.trim()),
+          convertToLatex(document.getElementById('optD').value.trim()),
+          convertToLatex(document.getElementById('optE').value.trim())
         ],
         correct: parseInt(document.getElementById('correctOpt').value)
       };
 
       questions.push(q);
       document.getElementById('qText').value = '';
+      document.getElementById('mathPreviewText').textContent = '...';
       document.getElementById('qImg').value = '';
       document.getElementById('optA').value = '';
       document.getElementById('optB').value = '';
       document.getElementById('optC').value = '';
       document.getElementById('optD').value = '';
       document.getElementById('optE').value = '';
+      
+      updateSubMapelFilterOptions();
       renderQuizList();
     }
 
-    // PENINGKATAN TAMPILAN DAFTAR SOAL
+    function updateSubMapelFilterOptions() {
+      const select = document.getElementById('filterCategory');
+      const currentVal = select.value;
+      const categories = [...new Set(questions.map(q => q.subMapel))];
+      
+      select.innerHTML = '<option value="ALL">Semua Sub-Mapel</option>';
+      categories.forEach(c => {
+        select.innerHTML += `<option value="${c}">${c}</option>`;
+      });
+      select.value = currentVal;
+    }
+
     function renderQuizList() {
       const box = document.getElementById('quizBankList');
+      const filterVal = document.getElementById('filterCategory').value;
       box.innerHTML = '';
-      if(questions.length === 0) {
-        box.innerHTML = '<span class="text-slate-500">Belum ada soal dibuat.</span>';
+
+      const filtered = filterVal === 'ALL' ? questions : questions.filter(q => q.subMapel === filterVal);
+
+      if(filtered.length === 0) {
+        box.innerHTML = '<span class="text-slate-500">Belum ada soal pada kategori ini.</span>';
         return;
       }
 
-      questions.forEach((q, i) => {
+      filtered.forEach((q, i) => {
+        const originalIndex = questions.indexOf(q);
         const labels = ['A', 'B', 'C', 'D', 'E'];
         box.innerHTML += `
           <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl flex justify-between items-start gap-3">
             <div class="space-y-1 flex-1">
-              <div class="font-bold text-amber-300">Soal #${i+1}: ${q.question}</div>
-              <div class="text-[11px] text-slate-400 flex flex-wrap gap-2">
+              <div class="flex items-center gap-2">
+                <span class="bg-indigo-900 text-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-700">${q.subMapel}</span>
+                <span class="font-bold text-amber-300">Soal #${originalIndex+1}: ${q.question}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 flex flex-wrap gap-2 pt-1">
                 ${q.options.map((opt, idx) => `
                   <span class="${idx === q.correct ? 'text-emerald-400 font-bold underline' : 'text-slate-400'}">
                     ${labels[idx]}. ${opt}${idx === q.correct ? '✓' : ''}
@@ -259,23 +336,31 @@
                 `).join(' • ')}
               </div>
             </div>
-            <button onclick="deleteQuestion(${i})" class="text-rose-400 hover:text-rose-200 font-bold p-1 bg-slate-800 rounded-lg border border-slate-700">🗑️ Hapus</button>
+            <button onclick="deleteQuestion(${originalIndex})" class="text-rose-400 hover:text-rose-200 font-bold p-1 bg-slate-800 rounded-lg border border-slate-700">🗑️ Hapus</button>
           </div>`;
+      });
+
+      renderMathInElement(box, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
       });
     }
 
     function deleteQuestion(index) {
       questions.splice(index, 1);
+      updateSubMapelFilterOptions();
       renderQuizList();
     }
 
-    // JALANKAN SOAL + TIMER PADA LAYAR GURU
     function triggerNextQuiz() {
       if(questions.length === 0) return alert("Tambahkan soal terlebih dahulu!");
       if(currentIdx + 1 >= questions.length) return alert("Semua soal sudah dikeluarkan!");
       
       currentIdx++;
-      document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length}`;
+      document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length} (${questions[currentIdx].subMapel})`;
       
       const isBlind = (questions.length - currentIdx) <= 3;
 
@@ -287,7 +372,6 @@
         isBlind: isBlind
       });
 
-      // Jalankan Timer 15 Detik di Layar Guru
       startTeacherTimer();
     }
 
@@ -322,11 +406,9 @@
       if(db) db.ref('logs/' + key).remove();
     }
 
-    // FUNGSI DOWNLOAD EXCEL HASIL REKAPITULASI GAME
     function exportToExcel() {
       if(Object.keys(studentDataCache).length === 0) return alert("Belum ada data siswa untuk diunduh!");
 
-      // Urutkan siswa berdasarkan skor tertinggi
       const sortedStudents = Object.values(studentDataCache).sort((a,b) => b.score - a.score);
 
       const excelData = sortedStudents.map((s, index) => ({
@@ -335,12 +417,10 @@
         "Total Skor": s.score || 0
       }));
 
-      // Buat file Excel dengan SheetJS
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil Bintang Juara");
 
-      // Download File
       const filename = `Hasil_Game_BintangJuara_${new Date().toISOString().slice(0,10)}.xlsx`;
       XLSX.writeFile(workbook, filename);
     }
