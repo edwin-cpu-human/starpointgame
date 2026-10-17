@@ -7,13 +7,19 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  
+  <!-- KaTeX Rendering untuk Matematika -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  
   <style>
     body { user-select: none; -webkit-user-select: none; }
   </style>
 </head>
 <body class="bg-slate-950 text-white min-h-screen p-4 flex flex-col justify-between font-sans">
   
-  <!-- POPUP PERINGATAN KECURANGAN (MUNCUL 1 DETIK) -->
+  <!-- FLASH PERINGATAN CURANG 1 DETIK -->
   <div id="penaltyFlash" class="fixed inset-0 bg-rose-600/95 z-50 flex flex-col items-center justify-center p-6 text-center hidden animate-pulse">
     <span class="text-5xl mb-2">🚨</span>
     <h1 class="text-2xl font-black text-white mb-2">TERDETEKSI CURANG!</h1>
@@ -63,12 +69,15 @@
 
   <!-- ARENA KUIS HP -->
   <main id="quizArea" class="my-auto hidden space-y-4">
-    <h2 id="qTextPlayer" class="text-sm font-bold text-center text-slate-200">Menunggu Guru Mengeluarkan Soal...</h2>
+    <div id="subBadge" class="text-center">
+      <span id="subMapelText" class="bg-indigo-900 text-indigo-300 text-[10px] font-bold px-3 py-1 rounded-full border border-indigo-700">Matematika</span>
+    </div>
+    <h2 id="qTextPlayer" class="text-sm font-bold text-center text-slate-200">Menunggu Soal Dari Guru...</h2>
     <div id="optionsGroup" class="grid grid-cols-1 gap-2"></div>
   </main>
 
   <footer class="text-center text-[10px] text-slate-500 py-2">
-    Bintang Juara • Sistem Kuis E-Sports Kelas
+    Bintang Juara • Sistem Kuis E-Sports
   </footer>
 
   <script>
@@ -81,7 +90,7 @@
     let quizActive = false;
     let hasCheatedThisRound = false;
 
-    // Load Student Names
+    // Load Student Names secara Real-time
     db.ref('students').on('value', snap => {
       const select = document.getElementById('selectMyName');
       select.innerHTML = '';
@@ -110,7 +119,7 @@
     // SISTEM PENGAMAN "MATA ELANG" (FLASH 1 DETIK)
     function triggerAntiCheat() {
       if (quizActive && playerName && !hasCheatedThisRound) {
-        hasCheatedThisRound = true; // Kunci agar tidak double penalty dalam 1 soal
+        hasCheatedThisRound = true;
 
         // 1. Potong skor -100 poin
         db.ref(`students/${playerName}/score`).transaction(s => (s || 0) - 100);
@@ -122,7 +131,7 @@
           details: "Keluar arena saat soal aktif"
         });
 
-        // 3. Tampilkan flash merah menutupi layar selama 1 detik (1000 ms)
+        // 3. Tampilkan flash merah menutupi layar selama 1 detik
         const flash = document.getElementById('penaltyFlash');
         flash.classList.remove('hidden');
 
@@ -147,7 +156,7 @@
       const data = snap.val();
       if(data && data.status === 'QUIZ_ACTIVE') {
         quizActive = true;
-        hasCheatedThisRound = false; // Reset status curang untuk soal baru
+        hasCheatedThisRound = false;
         currentQuizData = data;
         renderQuizButtons(data.questionData);
       }
@@ -155,28 +164,38 @@
 
     function renderQuizButtons(q) {
       document.getElementById('quizArea').classList.remove('hidden');
+      document.getElementById('subMapelText').textContent = q.subMapel || 'Matematika';
       document.getElementById('qTextPlayer').textContent = q.question;
       
       const box = document.getElementById('optionsGroup');
       box.innerHTML = '';
 
-      // Acak tombol pilihan jawaban
+      // Acak tombol pilihan jawaban (Flat Style)
       let opts = q.options.map((opt, i) => ({ text: opt, originalIdx: i }));
       opts.sort(() => Math.random() - 0.5);
 
       opts.forEach(o => {
         const btn = document.createElement('button');
-        btn.className = "w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-xl text-xs font-semibold text-slate-200 transition-all";
+        btn.className = "w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-xl text-xs font-semibold text-slate-200 transition-all text-left";
         btn.textContent = o.text;
         btn.onclick = () => submitAnswer(o.originalIdx, btn);
         box.appendChild(btn);
       });
+
+      // Render Rumus Matematika KaTeX
+      renderMathInElement(document.getElementById('quizArea'), {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
     }
 
     function submitAnswer(idx, btn) {
-      quizActive = false; // Matikan timer anti-cheat untuk soal ini karena sudah menjawab
+      quizActive = false;
       document.querySelectorAll('#optionsGroup button').forEach(b => b.disabled = true);
-      btn.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white'); // Kunci pilihan tanpa membocorkan jawaban benar/salah
+      btn.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white');
 
       const isCorrect = idx === currentQuizData.questionData.correct;
       const elapsed = (Date.now() - currentQuizData.startTime) / 1000;
