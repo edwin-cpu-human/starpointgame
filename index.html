@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Star Chase - Player Joypad</title>
+  <title>Bintang Juara - Player Joypad</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -13,16 +13,43 @@
 </head>
 <body class="bg-slate-950 text-white min-h-screen p-4 flex flex-col justify-between font-sans">
   
-  <!-- LOGIN PEMAIN -->
-  <div id="loginScreen" class="fixed inset-0 bg-slate-950 z-50 p-6 flex flex-col justify-center">
-    <h2 class="text-xl font-bold text-amber-400 mb-2">⭐ Masuk Arena Game</h2>
-    <p class="text-xs text-slate-400 mb-4">Pilih nama kamu dari daftar yang sudah disediakan Guru:</p>
-    <select id="selectMyName" class="bg-slate-900 border border-slate-700 text-white p-3 rounded-xl mb-4 text-sm font-bold">
-      <option value="">-- Memuat daftar nama... --</option>
-    </select>
-    <button onclick="confirmPlayer()" class="bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl text-sm">Mulai Bermain 🚀</button>
+  <!-- POPUP PERINGATAN KECURANGAN (MUNCUL 1 DETIK) -->
+  <div id="penaltyFlash" class="fixed inset-0 bg-rose-600/95 z-50 flex flex-col items-center justify-center p-6 text-center hidden animate-pulse">
+    <span class="text-5xl mb-2">🚨</span>
+    <h1 class="text-2xl font-black text-white mb-2">TERDETEKSI CURANG!</h1>
+    <p class="text-lg font-bold text-rose-100">Skor Anda -100 Point</p>
   </div>
 
+  <!-- HALAMAN LOGIN & PANDUAN PERMAINAN -->
+  <div id="loginScreen" class="fixed inset-0 bg-slate-950 z-40 p-6 flex flex-col justify-between overflow-y-auto">
+    <div>
+      <div class="text-center my-4">
+        <h1 class="text-2xl font-black text-amber-400 tracking-wider">⭐ BINTANG JUARA</h1>
+        <p class="text-xs text-slate-400">Arena Kuis E-Sports Kelas Interaktif</p>
+      </div>
+
+      <!-- KOTAK PANDUAN PERMAINAN -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 text-xs space-y-2 text-slate-300">
+        <h3 class="font-bold text-amber-300 text-sm mb-1">📖 Panduan Singkat Permainan:</h3>
+        <p>1️⃣ <b>Waktu 15 Detik:</b> Jawab setiap soal sebelum waktu habis. Terlambat = 0 poin.</p>
+        <p>2️⃣ <b>Bonus Kecepatan:</b> Semakin cepat kamu menjawab dengan benar, semakin besar poin bonus yang didapat!</p>
+        <p>3️⃣ <b>Mata Elang (Anti-AI):</b> Dilarang pindah tab, membuka aplikasi lain, atau *minimize* layar saat soal aktif.</p>
+        <p class="text-rose-400 font-bold">⚠️ Melanggar = Layar berkedip merah dan skor langsung dipotong -100 poin seketika!</p>
+      </div>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-400 mb-1">Pilih Nama Kamu:</label>
+        <select id="selectMyName" class="w-full bg-slate-900 border border-slate-700 text-white p-3 rounded-xl text-sm font-bold">
+          <option value="">-- Menunggu daftar nama dari Guru --</option>
+        </select>
+      </div>
+      <button onclick="confirmPlayer()" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl text-sm shadow-lg">Siap Bermain 🚀</button>
+    </div>
+  </div>
+
+  <!-- HEADER UTAMA GAME -->
   <header class="flex justify-between items-center border-b border-slate-800 pb-3">
     <div>
       <span class="text-[10px] text-slate-400 block">Pemain:</span>
@@ -36,19 +63,15 @@
 
   <!-- ARENA KUIS HP -->
   <main id="quizArea" class="my-auto hidden space-y-4">
-    <div id="penaltyAlert" class="hidden bg-rose-600 text-white p-3 rounded-xl text-xs font-bold text-center animate-bounce">
-      🚨 TERDETEKSI KELUAR ARENA! Skor kamu dipotong -100 Poin!
-    </div>
-    <h2 id="qTextPlayer" class="text-sm font-bold text-center text-slate-200">Soal Muncul...</h2>
+    <h2 id="qTextPlayer" class="text-sm font-bold text-center text-slate-200">Menunggu Guru Mengeluarkan Soal...</h2>
     <div id="optionsGroup" class="grid grid-cols-1 gap-2"></div>
   </main>
 
   <footer class="text-center text-[10px] text-slate-500 py-2">
-    ⚠️ Dilarang menekan tombol Home atau pindah aplikasi saat kuis berlangsung!
+    Bintang Juara • Sistem Kuis E-Sports Kelas
   </footer>
 
   <script>
-    // Koneksi Otomatis ke Database
     const savedUrl = "https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/";
     firebase.initializeApp({ databaseURL: savedUrl });
     const db = firebase.database();
@@ -56,12 +79,14 @@
     let playerName = '';
     let currentQuizData = null;
     let quizActive = false;
+    let hasCheatedThisRound = false;
 
-    // Load Student Names secara Real-time
+    // Load Student Names
     db.ref('students').on('value', snap => {
       const select = document.getElementById('selectMyName');
       select.innerHTML = '';
       if(snap.exists()){
+        select.innerHTML = '<option value="">-- Pilih Nama Kamu --</option>';
         Object.keys(snap.val()).forEach(name => {
           select.innerHTML += `<option value="${name}">${name}</option>`;
         });
@@ -72,7 +97,7 @@
 
     function confirmPlayer() {
       playerName = document.getElementById('selectMyName').value;
-      if(!playerName || playerName.includes('Belum ada')) return alert("Pilih namamu lebih dulu!");
+      if(!playerName) return alert("Silakan pilih nama kamu terlebih dahulu!");
       document.getElementById('myName').textContent = playerName;
       document.getElementById('loginScreen').classList.add('hidden');
 
@@ -82,20 +107,47 @@
       });
     }
 
-    // DETEKSI KECURANGAN (MATA ELANG)
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && quizActive && playerName) {
+    // SISTEM PENGAMAN "MATA ELANG" (FLASH 1 DETIK)
+    function triggerAntiCheat() {
+      if (quizActive && playerName && !hasCheatedThisRound) {
+        hasCheatedThisRound = true; // Kunci agar tidak double penalty dalam 1 soal
+
+        // 1. Potong skor -100 poin
         db.ref(`students/${playerName}/score`).transaction(s => (s || 0) - 100);
-        db.ref('logs').push({ name: playerName, time: new Date().toLocaleTimeString() });
-        document.getElementById('penaltyAlert').classList.remove('hidden');
+
+        // 2. Kirim log ke Layar Guru
+        db.ref('logs').push({ 
+          name: playerName, 
+          time: new Date().toLocaleTimeString(),
+          details: "Keluar arena saat soal aktif"
+        });
+
+        // 3. Tampilkan flash merah menutupi layar selama 1 detik (1000 ms)
+        const flash = document.getElementById('penaltyFlash');
+        flash.classList.remove('hidden');
+
+        setTimeout(() => {
+          flash.classList.add('hidden');
+        }, 1000);
       }
+    }
+
+    // Sensor Perubahan Tab / Minimalkan Jendela
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) triggerAntiCheat();
     });
 
-    // LISTEN GAME STATE
+    // Sensor Kehilangan Fokus Layar
+    window.addEventListener('blur', () => {
+      triggerAntiCheat();
+    });
+
+    // LISTEN GAME STATE DARI GURU
     db.ref('currentGameState').on('value', snap => {
       const data = snap.val();
       if(data && data.status === 'QUIZ_ACTIVE') {
         quizActive = true;
+        hasCheatedThisRound = false; // Reset status curang untuk soal baru
         currentQuizData = data;
         renderQuizButtons(data.questionData);
       }
@@ -103,13 +155,12 @@
 
     function renderQuizButtons(q) {
       document.getElementById('quizArea').classList.remove('hidden');
-      document.getElementById('penaltyAlert').classList.add('hidden');
       document.getElementById('qTextPlayer').textContent = q.question;
       
       const box = document.getElementById('optionsGroup');
       box.innerHTML = '';
 
-      // Acak tombol pilihan jawaban (Flat Style)
+      // Acak tombol pilihan jawaban
       let opts = q.options.map((opt, i) => ({ text: opt, originalIdx: i }));
       opts.sort(() => Math.random() - 0.5);
 
@@ -123,9 +174,9 @@
     }
 
     function submitAnswer(idx, btn) {
-      quizActive = false;
+      quizActive = false; // Matikan timer anti-cheat untuk soal ini karena sudah menjawab
       document.querySelectorAll('#optionsGroup button').forEach(b => b.disabled = true);
-      btn.classList.add('bg-emerald-600', 'border-emerald-400', 'text-white'); // Tanda kunci hijau tanpa bocor benar/salah
+      btn.classList.add('bg-indigo-600', 'border-indigo-400', 'text-white'); // Kunci pilihan tanpa membocorkan jawaban benar/salah
 
       const isCorrect = idx === currentQuizData.questionData.correct;
       const elapsed = (Date.now() - currentQuizData.startTime) / 1000;
