@@ -2,45 +2,59 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <title>Game Master Control Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bintang Juara - Game Master Control</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- Library SheetJS untuk Export Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-900 text-white p-6 font-sans">
   <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- HEADER UTAMA -->
     <header class="border-b border-slate-700 pb-4 flex justify-between items-center">
-      <h1 class="text-2xl font-bold text-amber-400">🎛️ Layar Game Master (Guru)</h1>
-      <span id="statusConn" class="bg-rose-600 text-xs px-3 py-1 rounded-full font-semibold">Memeriksa Database...</span>
+      <div>
+        <h1 class="text-2xl font-black text-amber-400 tracking-wider">⭐ BINTANG JUARA</h1>
+        <p class="text-xs text-slate-400">Pusat Kendali Game Master (Guru)</p>
+      </div>
+      <span id="statusConn" class="bg-rose-600 text-xs px-3 py-1.5 rounded-full font-bold">Memeriksa Database...</span>
     </header>
 
-    <!-- SETUP CONFIG -->
+    <!-- SETUP CONFIG DATABASE -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-      <h2 class="text-md font-bold mb-2 text-indigo-300">🔑 Pengaturan Firebase Config</h2>
-      <p class="text-xs text-slate-400 mb-2">URL Realtime Database milikmu:</p>
+      <h2 class="text-xs font-bold uppercase tracking-wider text-indigo-300 mb-2">🔑 Status Koneksi Firebase</h2>
       <input type="text" id="dbUrlInput" value="https://star-point-fa5e2-default-rtdb.asia-southeast1.firebasedatabase.app/" class="w-full bg-slate-900 border border-slate-700 p-2 text-xs rounded text-amber-300 mb-2">
-      <button onclick="saveDbUrl()" class="bg-indigo-600 text-xs font-bold px-4 py-2 rounded hover:bg-indigo-500">Hubungkan Sinyal</button>
+      <button onclick="saveDbUrl()" class="bg-indigo-600 hover:bg-indigo-500 text-xs font-bold px-4 py-2 rounded">Hubungkan Ulang Sinyal</button>
     </section>
 
-    <!-- ATUR NAMA PEMAIN -->
-    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-      <div class="flex justify-between items-center mb-2">
-        <h2 class="text-md font-bold text-indigo-300">👥 Kelola Daftar Siswa</h2>
-        <button onclick="resetAllStudents()" class="bg-rose-700 hover:bg-rose-600 text-xs text-white font-bold px-3 py-1 rounded">🗑️ Hapus Semua Siswa</button>
+    <!-- KELOLA SISWA & HASIL EXCEL -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="text-sm font-bold text-indigo-300">👥 Kelola Daftar Siswa & Skor</h2>
+        <div class="flex gap-2">
+          <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-bold px-3 py-1.5 rounded shadow">📊 Download Hasil (Excel)</button>
+          <button onclick="resetScoresOnly()" class="bg-amber-600 hover:bg-amber-500 text-xs text-white font-bold px-3 py-1.5 rounded">🔄 Reset Skor Semua Siswa</button>
+          <button onclick="resetAllStudents()" class="bg-rose-700 hover:bg-rose-600 text-xs text-white font-bold px-3 py-1.5 rounded">🗑️ Hapus Semua Siswa</button>
+        </div>
       </div>
-      <div class="flex gap-2 mb-2">
+      
+      <div class="flex gap-2">
         <input type="text" id="inputStudent" placeholder="Ketik nama siswa lalu klik tambah..." class="flex-1 bg-slate-900 border border-slate-700 p-2 text-xs rounded">
-        <button onclick="addStudent()" class="bg-emerald-600 text-xs font-bold px-4 py-2 rounded hover:bg-emerald-500">+ Tambah Siswa</button>
+        <button onclick="addStudent()" class="bg-emerald-600 hover:bg-emerald-500 text-xs font-bold px-4 py-2 rounded">+ Tambah Siswa</button>
       </div>
+      
       <div id="studentList" class="flex flex-wrap gap-2 pt-2"></div>
     </section>
 
-    <!-- ATUR SOAL KUIS -->
-    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-      <h2 class="text-md font-bold mb-2 text-indigo-300">📝 Kelola Soal & Gambar</h2>
-      <div class="space-y-3 text-xs">
-        <input type="text" id="qText" placeholder="Pertanyaan / Soal Matematika" class="w-full bg-slate-900 border border-slate-700 p-2 rounded">
+    <!-- KELOLA SOAL & GAMBAR -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+      <h2 class="text-sm font-bold text-indigo-300">📝 Kelola Bank Soal</h2>
+      <div class="space-y-2 text-xs">
+        <input type="text" id="qText" placeholder="Pertanyaan / Soal Kuis" class="w-full bg-slate-900 border border-slate-700 p-2.5 rounded">
         <input type="text" id="qImg" placeholder="Link Gambar/Rumus (Opsional, cth: https://i.imgur.com/xxx.png)" class="w-full bg-slate-900 border border-slate-700 p-2 rounded">
+        
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <input type="text" id="optA" placeholder="Pilihan A" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optB" placeholder="Pilihan B" class="bg-slate-900 border border-slate-700 p-2 rounded">
@@ -48,8 +62,9 @@
           <input type="text" id="optD" placeholder="Pilihan D" class="bg-slate-900 border border-slate-700 p-2 rounded">
           <input type="text" id="optE" placeholder="Pilihan E" class="bg-slate-900 border border-slate-700 p-2 rounded">
         </div>
-        <div class="flex items-center gap-4">
-          <label class="text-slate-300">Jawaban Benar:</label>
+        
+        <div class="flex items-center gap-4 pt-1">
+          <label class="text-slate-300 font-semibold">Jawaban Benar:</label>
           <select id="correctOpt" class="bg-slate-900 border border-slate-700 p-2 rounded text-amber-400 font-bold">
             <option value="0">Pilihan A</option>
             <option value="1">Pilihan B</option>
@@ -57,35 +72,52 @@
             <option value="3">Pilihan D</option>
             <option value="4">Pilihan E</option>
           </select>
-          <button onclick="addQuestion()" class="bg-indigo-600 font-bold px-4 py-2 rounded text-white hover:bg-indigo-500 flex-1">+ Simpan Soal Ini</button>
+          <button onclick="addQuestion()" class="bg-indigo-600 hover:bg-indigo-500 font-bold px-4 py-2 rounded text-white flex-1">+ Simpan Soal Ini</button>
         </div>
       </div>
-      <div id="quizBankList" class="mt-4 space-y-2 text-xs border-t border-slate-700 pt-3"></div>
+
+      <!-- DAFTAR KARTU SOAL DENGAN TAMPILAN BARU -->
+      <div class="border-t border-slate-700 pt-3 mt-3">
+        <h3 class="text-xs font-bold text-slate-400 mb-2">Daftar Soal Tersimpan:</h3>
+        <div id="quizBankList" class="space-y-2 text-xs"></div>
+      </div>
     </section>
 
-    <!-- TOMBOL KONTROL GAME -->
-    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+    <!-- KONTROL GAME LIVE & TIMER -->
+    <section class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
       <div>
-        <h3 class="text-sm font-bold text-amber-300">🎮 Jalankan Game Live</h3>
+        <h3 class="text-sm font-bold text-amber-300">🎮 Kontrol Arena Game</h3>
         <p class="text-xs text-slate-400">Soal Aktif: <span id="currentQNum" class="font-bold text-white">Belum Ada</span></p>
       </div>
-      <div class="flex gap-3">
-        <button onclick="triggerNextQuiz()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm px-6 py-3 rounded-xl shadow-lg">🚀 KELUARKAN SOAL (15 DETIK)</button>
+      
+      <!-- TIMER SYNC KELUAR DI LAYAR GURU -->
+      <div id="teacherTimerBox" class="bg-slate-900 border border-rose-500/50 px-4 py-2 rounded-xl text-center hidden">
+        <span class="text-[10px] text-slate-400 block uppercase font-bold">Sisa Waktu:</span>
+        <span id="teacherTimer" class="text-2xl font-black text-rose-500">⏳ 15</span>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="triggerNextQuiz()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-5 py-3 rounded-xl shadow-lg">🚀 KELUARKAN SOAL (15 DETIK)</button>
         <button onclick="unfreezeScore()" class="bg-emerald-600 hover:bg-emerald-500 font-bold text-xs px-4 py-3 rounded-xl">🔓 BUKA SEGEL PEMENANG</button>
       </div>
     </section>
 
-    <!-- DAFTAR MONITORING / ANTI-CHEAT -->
+    <!-- RADAR ANTI-CHEAT -->
     <section class="bg-slate-800 p-4 rounded-xl border border-slate-700">
-      <h2 class="text-md font-bold mb-2 text-rose-400">🚩 Radar Pelanggaran Anti-AI (Pindah Tab)</h2>
-      <div id="cheatList" class="text-xs space-y-1 text-slate-300">Belum ada kecurangan terdeteksi.</div>
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-sm font-bold text-rose-400">🚩 Radar Pelanggaran Anti-AI (Pindah Tab)</h2>
+        <button onclick="clearLogs()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2.5 py-1 rounded">Bersihkan Log</button>
+      </div>
+      <div id="cheatList" class="text-xs space-y-1.5 text-slate-300">Belum ada kecurangan terdeteksi.</div>
     </section>
+
   </div>
 
   <script>
     let db;
     let questions = [];
     let currentIdx = -1;
+    let studentDataCache = {};
 
     function saveDbUrl() {
       const url = document.getElementById('dbUrlInput').value.trim();
@@ -100,33 +132,43 @@
       }
       db = firebase.database();
       document.getElementById('statusConn').textContent = "🟢 Sinyal Terhubung";
-      document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1 rounded-full font-semibold";
+      document.getElementById('statusConn').className = "bg-emerald-600 text-xs px-3 py-1.5 rounded-full font-bold";
       
-      // Auto-listen daftar siswa secara Real-time
+      // Auto-listen data siswa & skor
       db.ref('students').on('value', snap => {
         const box = document.getElementById('studentList');
         box.innerHTML = '';
         if(snap.exists()){
-          Object.keys(snap.val()).forEach(name => {
+          studentDataCache = snap.val();
+          Object.keys(studentDataCache).forEach(name => {
+            const score = studentDataCache[name].score || 0;
             box.innerHTML += `
-              <span class="bg-slate-700 px-3 py-1 rounded-full text-xs font-bold text-indigo-300 flex items-center gap-2">
-                👤 ${name}
-                <button onclick="deleteStudent('${name}')" class="text-rose-400 hover:text-rose-200 font-black">✕</button>
+              <span class="bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-full text-xs font-bold text-indigo-300 flex items-center gap-2">
+                👤 ${name} <span class="bg-slate-900 px-2 py-0.5 rounded-full text-amber-400 font-mono">${score} pts</span>
+                <button onclick="deleteStudent('${name}')" class="text-rose-400 hover:text-rose-200 font-black ml-1">✕</button>
               </span>`;
           });
         } else {
+          studentDataCache = {};
           box.innerHTML = '<span class="text-xs text-slate-500">Belum ada siswa terdaftar.</span>';
         }
       });
 
-      // Listen Fraud / Cheat Logs
+      // Auto-listen Log Kecurangan
       db.ref('logs').on('value', snap => {
-        const val = snap.val();
         const box = document.getElementById('cheatList');
-        if(!val) return;
+        if(!snap.exists()) {
+          box.innerHTML = '<span class="text-slate-500">Belum ada kecurangan terdeteksi.</span>';
+          return;
+        }
         box.innerHTML = '';
-        Object.values(val).forEach(l => {
-          box.innerHTML += `<div class="bg-rose-950/50 border border-rose-800 p-2 rounded text-rose-300">🚩 <b>${l.name}</b> terdeteksi keluar arena pada ${l.time}! (Penalti -100 Poin)</div>`;
+        const logsData = snap.val();
+        Object.keys(logsData).forEach(key => {
+          const l = logsData[key];
+          box.innerHTML += `<div class="bg-rose-950/50 border border-rose-800/80 p-2 rounded-lg text-rose-300 flex justify-between items-center">
+            <span>🚩 <b>${l.name}</b> keluar arena pada ${l.time}! (Penalti -100 Poin)</span>
+            <button onclick="deleteLog('${key}')" class="text-[10px] bg-rose-900 hover:bg-rose-800 text-white font-bold px-2 py-1 rounded">Hapus</button>
+          </div>`;
         });
       });
     }
@@ -145,57 +187,93 @@
       }
     }
 
-    // Fungsi Hapus 1 Siswa Spesifik
     function deleteStudent(name) {
-      if(confirm(`Yakin ingin menghapus ${name}?`) && db) {
-        db.ref('students/' + name).remove();
+      if(confirm(`Hapus ${name}?`) && db) db.ref('students/' + name).remove();
+    }
+
+    // FUNGSI 1: RESET SKOR HANYA (NAMA DIBIARKAN)
+    function resetScoresOnly() {
+      if(confirm("Yakin ingin MERESET SEMUA SKOR SISWA MENJADI 0? (Nama siswa tidak dihapus)") && db) {
+        Object.keys(studentDataCache).forEach(name => {
+          db.ref(`students/${name}/score`).set(0);
+        });
       }
     }
 
-    // Fungsi Hapus Semua Siswa
+    // FUNGSI 2: RESET TOTAL (HAPUS SEMUA SISWA)
     function resetAllStudents() {
-      if(confirm("Yakin ingin MENGHAPUS SEMUA SISWA & SKOR? Data tidak dapat dikembalikan.") && db) {
+      if(confirm("Yakin ingin MENGHAPUS SEMUA SISWA DAN SKOR?") && db) {
         db.ref('students').remove();
       }
     }
 
     function addQuestion() {
+      const qText = document.getElementById('qText').value.trim();
+      const optA = document.getElementById('optA').value.trim();
+      if(!qText || !optA) return alert("Isi soal dan pilihan jawaban!");
+
       const q = {
-        question: document.getElementById('qText').value,
-        img: document.getElementById('qImg').value,
+        question: qText,
+        img: document.getElementById('qImg').value.trim(),
         options: [
-          document.getElementById('optA').value,
-          document.getElementById('optB').value,
-          document.getElementById('optC').value,
-          document.getElementById('optD').value,
-          document.getElementById('optE').value
+          optA,
+          document.getElementById('optB').value.trim(),
+          document.getElementById('optC').value.trim(),
+          document.getElementById('optD').value.trim(),
+          document.getElementById('optE').value.trim()
         ],
         correct: parseInt(document.getElementById('correctOpt').value)
       };
-      if(q.question && q.options[0]) {
-        questions.push(q);
-        document.getElementById('qText').value = '';
-        document.getElementById('qImg').value = '';
-        document.getElementById('optA').value = '';
-        document.getElementById('optB').value = '';
-        document.getElementById('optC').value = '';
-        document.getElementById('optD').value = '';
-        document.getElementById('optE').value = '';
-        renderQuizList();
-      }
+
+      questions.push(q);
+      document.getElementById('qText').value = '';
+      document.getElementById('qImg').value = '';
+      document.getElementById('optA').value = '';
+      document.getElementById('optB').value = '';
+      document.getElementById('optC').value = '';
+      document.getElementById('optD').value = '';
+      document.getElementById('optE').value = '';
+      renderQuizList();
     }
 
+    // PENINGKATAN TAMPILAN DAFTAR SOAL
     function renderQuizList() {
       const box = document.getElementById('quizBankList');
       box.innerHTML = '';
+      if(questions.length === 0) {
+        box.innerHTML = '<span class="text-slate-500">Belum ada soal dibuat.</span>';
+        return;
+      }
+
       questions.forEach((q, i) => {
-        box.innerHTML += `<div class="bg-slate-900 p-2 rounded border border-slate-700">Soal ${i+1}: ${q.question} (Jawaban: Pilihan ${['A','B','C','D','E'][q.correct]})</div>`;
+        const labels = ['A', 'B', 'C', 'D', 'E'];
+        box.innerHTML += `
+          <div class="bg-slate-900 border border-slate-700 p-3 rounded-xl flex justify-between items-start gap-3">
+            <div class="space-y-1 flex-1">
+              <div class="font-bold text-amber-300">Soal #${i+1}: ${q.question}</div>
+              <div class="text-[11px] text-slate-400 flex flex-wrap gap-2">
+                ${q.options.map((opt, idx) => `
+                  <span class="${idx === q.correct ? 'text-emerald-400 font-bold underline' : 'text-slate-400'}">
+                    ${labels[idx]}. ${opt}${idx === q.correct ? '✓' : ''}
+                  </span>
+                `).join(' • ')}
+              </div>
+            </div>
+            <button onclick="deleteQuestion(${i})" class="text-rose-400 hover:text-rose-200 font-bold p-1 bg-slate-800 rounded-lg border border-slate-700">🗑️ Hapus</button>
+          </div>`;
       });
     }
 
+    function deleteQuestion(index) {
+      questions.splice(index, 1);
+      renderQuizList();
+    }
+
+    // JALANKAN SOAL + TIMER PADA LAYAR GURU
     function triggerNextQuiz() {
       if(questions.length === 0) return alert("Tambahkan soal terlebih dahulu!");
       if(currentIdx + 1 >= questions.length) return alert("Semua soal sudah dikeluarkan!");
+      
       currentIdx++;
       document.getElementById('currentQNum').textContent = `Soal #${currentIdx + 1} dari ${questions.length}`;
       
@@ -208,10 +286,63 @@
         startTime: Date.now(),
         isBlind: isBlind
       });
+
+      // Jalankan Timer 15 Detik di Layar Guru
+      startTeacherTimer();
+    }
+
+    function startTeacherTimer() {
+      const box = document.getElementById('teacherTimerBox');
+      const timerEl = document.getElementById('teacherTimer');
+      box.classList.remove('hidden');
+
+      let timeLeft = 15;
+      timerEl.textContent = `⏳ ${timeLeft}`;
+
+      const interval = setInterval(() => {
+        timeLeft--;
+        timerEl.textContent = `⏳ ${timeLeft}`;
+        if(timeLeft <= 0) {
+          clearInterval(interval);
+          timerEl.textContent = "✅ WAKTU HABIS";
+          setTimeout(() => box.classList.add('hidden'), 3000);
+        }
+      }, 1000);
     }
 
     function unfreezeScore() {
       if(db) db.ref('currentGameState/unfreeze').set(true);
+    }
+
+    function clearLogs() {
+      if(db) db.ref('logs').remove();
+    }
+
+    function deleteLog(key) {
+      if(db) db.ref('logs/' + key).remove();
+    }
+
+    // FUNGSI DOWNLOAD EXCEL HASIL REKAPITULASI GAME
+    function exportToExcel() {
+      if(Object.keys(studentDataCache).length === 0) return alert("Belum ada data siswa untuk diunduh!");
+
+      // Urutkan siswa berdasarkan skor tertinggi
+      const sortedStudents = Object.values(studentDataCache).sort((a,b) => b.score - a.score);
+
+      const excelData = sortedStudents.map((s, index) => ({
+        "Peringkat": index + 1,
+        "Nama Siswa": s.name,
+        "Total Skor": s.score || 0
+      }));
+
+      // Buat file Excel dengan SheetJS
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Hasil Bintang Juara");
+
+      // Download File
+      const filename = `Hasil_Game_BintangJuara_${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(workbook, filename);
     }
   </script>
 </body>
